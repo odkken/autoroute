@@ -6,7 +6,7 @@ namespace Routing
     {
         public float X { get; set; }
         public float Y { get; set; }
-
+        
         public double DistanceTo(Node outputPort)
         {
             var dx = X - outputPort.X;

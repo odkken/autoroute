@@ -1,15 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
-using System.Threading.Tasks;
-using MoreLinq;
 using OpenTK.Graphics;
 using SFML.Graphics;
 using SFML.System;
 using SFML.Window;
+using Keyboard = SFML.Window.Keyboard;
 
 namespace Routing
 {
@@ -70,7 +67,10 @@ namespace Routing
 
 
 
-
+        public static double GetCost(this int[] solution, double[,] costMatrix)
+        {
+            return solution.Select((t, i) => costMatrix[i, t]).Sum() * 0.01;
+        }
 
         enum Problem
         {
@@ -81,18 +81,18 @@ namespace Routing
         public static void Main(string[] args)
         {
             var problem = Problem.Routing;
-            var numPorts = 100;
+            var numPorts = 500;
             if (args.Length > 0)
             {
                 int.TryParse(args[0], out numPorts);
             }
 
             var screenSize = new Vector2u(640, 480);
-            //var inputPorts = Enumerable.Range(0, numPorts).Select(a => new Node { X = GetRN(screenSize.X * 4), Y = GetRN(screenSize.Y * 3) }).ToArray();
-            //var outputPorts = Enumerable.Range(0, numPorts).Select(a => new Node { X = GetRN(screenSize.X * 4), Y = GetRN(screenSize.Y * 3) }).ToArray();
-            var rows = (int)Math.Round(Math.Sqrt(numPorts));
-            var inputPorts = Enumerable.Range(0, numPorts).Select(a => new Node { X = (float)((a % rows) * rows * 1.0 / numPorts * 4 * screenSize.X), Y = (float)((a / rows) * rows * 1.0 / numPorts * 3 * screenSize.Y) }).ToArray();
-            var outputPorts = inputPorts.Select(a => new Node { X = a.X + 20, Y = a.Y + 130 }).ToArray();
+            var inputPorts = Enumerable.Range(0, numPorts).Select(a => new Node { X = GetSeededRN(screenSize.X * 4), Y = GetSeededRN(screenSize.Y * 3) }).ToArray();
+            var outputPorts = Enumerable.Range(0, numPorts + 100).Select(a => new Node { X = GetSeededRN(screenSize.X * 4), Y = GetSeededRN(screenSize.Y * 3) }).ToArray();
+            //var count = (int)Math.Round(Math.Sqrt(numPorts));
+            //var inputPorts = Enumerable.Range(0, numPorts).Select(a => new Node { X = (float)((a % count) * count * 1.0 / numPorts * 4 * screenSize.X), Y = (float)((a / count) * count * 1.0 / numPorts * 3 * screenSize.Y) }).ToArray();
+            //var outputPorts = inputPorts.Select(a => new Node { X = a.X + 20, Y = a.Y + 130 }).ToArray();
             //File.WriteAllLines(@"c:\temp\in.txt", inputPorts.Select(a=> $"{a.X},{a.Y}"));
             //File.WriteAllLines(@"c:\temp\out.txt", outputPorts.Select(a=> $"{a.X},{a.Y}"));
             //var inputPorts = File.ReadAllLines(@"c:\temp\in.txt").Select(a => new Node { X = float.Parse(a.Split(',')[0]), Y = float.Parse(a.Split(',')[1]) }).ToArray();
@@ -111,73 +111,86 @@ namespace Routing
             //    {
             //        particles.Add(new Particle(solver.Solution));
             //        costs.Add(solver.Cost);
-            //    }
+            //    }md
             //});
             //Console.WriteLine($"Initial Best solution: {costs.Min()}.  Average solution cost: {costs.Average()}");
             //var swarm = new Swarm(particles, Solution => Solution.Select((t, i) => inputPorts[i].DistanceTo(outputPorts[t])).Sum());
-            var swarm = new RoutingSolver(inputPorts, outputPorts);
-            Task.Run(() =>
+            var costMatrix = new int[inputPorts.Length, outputPorts.Length];
+            var originalCost = new int[costMatrix.GetLength(0), costMatrix.GetLength(1)];
+            for (int i = 0; i < inputPorts.Length; i++)
             {
-                while (!swarm.Finished)
+                for (int j = 0; j < outputPorts.Length; j++)
                 {
-                    swarm.Iterate();
+                    costMatrix[i, j] = (int)(1000 * inputPorts[i].DistanceTo(outputPorts[j]));
+                    originalCost[i, j] = costMatrix[i, j];
                 }
-            });
-
-
-            var w = new RenderWindow(VideoMode.DesktopMode, "asdf", Styles.Default) { Size = screenSize };
-            w.KeyPressed += OnKeyPressed;
-            w.Closed += OnClosed;
-            var allNodes = inputPorts.Select(a => new DrawableNode(a) { Color = Color.Magenta }).ToList();
-            if (problem == Problem.Routing)
-                allNodes.AddRange(outputPorts.Select(a => new DrawableNode(a) { Color = Color.Green }));
-
-            while (w.IsOpen)
-            {
-                w.DispatchEvents();
-                w.Clear();
-                foreach (var drawableNode in allNodes)
-                {
-                    w.Draw(drawableNode);
-                }
-                switch (problem)
-                {
-                    case Problem.Routing:
-                        for (int j = 0; j < numPorts; j++)
-                        {
-                            var vertices = new Vertex[2];
-                            vertices[0] = new Vertex(new Vector2f(inputPorts[j].X, inputPorts[j].Y));
-                            vertices[1] = new Vertex(new Vector2f(outputPorts[swarm.Solution[j]].X, outputPorts[swarm.Solution[j]].Y));
-                            w.Draw(vertices, PrimitiveType.Lines, RenderStates.Default);
-                        }
-                        break;
-                    case Problem.TSP:
-                        {
-                            var vertices = new Vertex[swarm.Solution.Length];
-                            lock (swarm.Solution)
-                            {
-
-                                for (int i = 0; i < swarm.Solution.Length; i++)
-                                {
-                                    vertices[i] =
-                                        new Vertex(new Vector2f(inputPorts[swarm.Solution[i]].X,
-                                            inputPorts[swarm.Solution[i]].Y));
-                                }
-                            }
-                            w.Draw(vertices, PrimitiveType.LinesStrip);
-                            break;
-                        }
-                    default:
-                        throw new ArgumentOutOfRangeException();
-                }
-
-                w.Display();
-
-
-                //Console.ReadKey();
-
-
             }
+
+
+            //var hungTask = Task.Run(() => costMatrix.FindAssignments());
+            //var swarm = new RoutingSolver(inputPorts, costMatrix);
+            //var swarmTask = Task.Run(() =>
+            //{
+            //    while (!swarm.Finished)
+            //    {
+            //        swarm.Iterate();
+            //    }
+            //});
+
+            //swarmTask.Wait();
+            //hungTask.Wait();
+            //var hung = hungTask.Result;
+            //Console.WriteLine($"swarm: {swarm.Solution.GetCost(originalCost)}\nhungarian: {hung.GetCost(originalCost)}");
+
+            costMatrix.FindAssignments();
+
+
+            //var w = new RenderWindow(VideoMode.DesktopMode, "asdf", Styles.Default) { Size = screenSize };
+            //w.KeyPressed += OnKeyPressed;
+            //w.Closed += OnClosed;
+            //var allNodes = inputPorts.Select(a => new DrawableNode(a) { Color = Color.Magenta }).ToList();
+            //if (problem == Problem.Routing)
+            //    allNodes.AddRange(outputPorts.Select(a => new DrawableNode(a) { Color = Color.Green }));
+
+            //var displaySwarm = true;
+            //w.KeyPressed += (sender, eventArgs) =>
+            //{
+            //    if (eventArgs.Code == Keyboard.Key.Space)
+            //        displaySwarm = !displaySwarm;
+            //};
+
+            //while (w.IsOpen)
+            //{
+            //    w.DispatchEvents();
+            //    w.Clear();
+            //    foreach (var drawableNode in allNodes)
+            //    {
+            //        w.Draw(drawableNode);
+            //    }
+            //    for (int j = 0; j < numPorts; j++)
+            //    {
+            //        var vertices = new Vertex[2];
+            //        vertices[0] = new Vertex(new Vector2f(inputPorts[j].X, inputPorts[j].Y));
+            //        if (displaySwarm)
+            //            vertices[1] = new Vertex(new Vector2f(outputPorts[swarm.Solution[j]].X, outputPorts[swarm.Solution[j]].Y));
+            //        else
+            //            vertices[1] = new Vertex(new Vector2f(outputPorts[hung[j]].X, outputPorts[hung[j]].Y));
+            //        w.Draw(vertices, PrimitiveType.Lines, RenderStates.Default);
+            //    }
+
+            //    w.Display();
+
+
+            //    //Console.ReadKey();
+
+
+            //}
+        }
+
+        private static readonly Random rng = new Random(0);
+        private static float GetSeededRN(uint u)
+        {
+            return (float)(u * rng.NextDouble());
         }
 
         private static float GetRN(uint scale)

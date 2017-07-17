@@ -23,7 +23,6 @@ namespace Routing
             var bestSwapIndex2 = -1;
             Parallel.For(0, Solution.Length, i =>
             {
-
                 for (var j = i; j < Solution.Length; j++)
                 {
                     var improvement = GetSwapImprovement(i, j);
@@ -31,6 +30,8 @@ namespace Routing
                     {
                         lock (locker)
                         {
+                            if(improvement <= bestSwapImprovement)
+                                continue;
                             bestSwapImprovement = improvement;
                             bestSwapIndex1 = i;
                             bestSwapIndex2 = j;

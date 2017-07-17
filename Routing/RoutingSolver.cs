@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using MoreLinq;
 
@@ -6,38 +7,24 @@ namespace Routing
 {
     public class RoutingSolver : PermutationSolverBase
     {
-        private readonly Node[] _inputPorts;
-        private readonly Node[] _outputPorts;
+        private readonly double[,] _costMatrix;
 
-        public RoutingSolver(Node[] inputPorts, Node[] outputPorts)
+        public RoutingSolver(IReadOnlyCollection<Node> inputPorts, double[,] costMatrix)
         {
-            _inputPorts = inputPorts;
-            var unusedInputs = _inputPorts.ToList();
-            _outputPorts = outputPorts;
-            Solution = Enumerable.Range(0, _inputPorts.Length).ToArray();
+            _costMatrix = costMatrix;
+            Solution = Enumerable.Range(0, inputPorts.Count).ToArray();
             Solution.Shuffle();
-            var unusedIndeces = Enumerable.Range(0, _inputPorts.Length).ToList();
-            var outList = outputPorts.ToList();
-            while (unusedIndeces.Any())
-            {
-                var cheapest = unusedIndeces.AsParallel().MinBy(a => unusedInputs.Min(b => b.DistanceTo(outList[a])));
-                var closestPort = unusedInputs.AsParallel().MinBy(a => a.DistanceTo(outList[cheapest]));
-                unusedInputs.Remove(closestPort);
-                unusedIndeces.Remove(cheapest);
-                Solution[_inputPorts.ToList().IndexOf(closestPort)] = cheapest;
-            }
-
         }
 
         protected override double GetCost()
         {
-            return Solution.Select((t, i) => _inputPorts[i].DistanceTo(_outputPorts[t])).Sum();
+            return Solution.Select((t, i) => _costMatrix[i, t]).Sum();
         }
 
         protected override double GetSwapImprovement(int i, int j)
         {
-            var initialCost = _inputPorts[i].DistanceTo(_outputPorts[Solution[i]]) + _inputPorts[j].DistanceTo(_outputPorts[Solution[j]]);
-            var swappedCost = _inputPorts[j].DistanceTo(_outputPorts[Solution[i]]) + _inputPorts[i].DistanceTo(_outputPorts[Solution[j]]);
+            var initialCost = _costMatrix[i, Solution[i]] + _costMatrix[j, Solution[j]];
+            var swappedCost = _costMatrix[j, Solution[i]] + _costMatrix[i, Solution[j]];
             return initialCost - swappedCost;
         }
 
